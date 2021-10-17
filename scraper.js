@@ -6,5 +6,15 @@ import { load } from 'cheerio';
   const html = await response.text();
 
   const $ = load(html);
-  console.log($.html());
+  const infocards = $('div.infocard-list div.infocard');
+
+  infocards.each((i, el) => {
+    const e = $(el);
+
+    console.log({
+      'name': e.find('a.ent-name').text().toLowerCase(),
+      'picture': '',
+      'types': e.find('small a.itype').toArray().map((el) => $(el).text().toLowerCase())
+    })}
+  )
 })()

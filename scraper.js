@@ -53,10 +53,7 @@ import fs from 'fs';
 // Names
 (async () => {
   const pokemonFiles = fs.readdirSync('./docs/pages');
-  const languages = {
-    de: {},
-    en: {},
-  };
+  const languages = { };
 
   for (const [index, file] of pokemonFiles.entries()) {
     const html = fs.readFileSync(`./docs/pages/${file}`, console.log);
@@ -66,10 +63,8 @@ import fs from 'fs';
     const nameEN = nameTable.find('tr:nth-child(1) td').text().toLowerCase();
     const nameDE = nameTable.find('tr:nth-child(3) td').text().toLowerCase();
 
-    languages['de'][nameDE] = {
+    languages[nameEN] = {
       'en': nameEN,
-    };
-    languages['en'][nameEN] = {
       'de': nameDE,
     };
   }

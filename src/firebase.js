@@ -12,7 +12,7 @@ let db = getFirestore(app);
 (async () => {
   const pokemonArray = [];
 
-  for (let index = 1; index <= 800; index++) {
+  for (let index = 1; index <= 100; index++) {
     const pokemon = JSON.parse(fs.readFileSync(`./docs/personal/pokemon_${index}.json`, console.log));
     pokemonArray.push(pokemon);
   }

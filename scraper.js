@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { load } from 'cheerio';
+import {load} from 'cheerio';
 import fs from 'fs';
 
 const POKEMON_COUNT = 898;
@@ -37,7 +37,7 @@ async function downloadPokemonJSON() {
   for (let index = 1; index <= POKEMON_COUNT; index++) {
     const response = await fetch(`${base}/${index}`);
     const json = await response.json();
-    
+
     if (!fs.existsSync('./docs/pokeAPI')) {
       fs.mkdirSync('./docs/pokeAPI');
     }
@@ -53,24 +53,24 @@ function combineData() {
     const $ = load(pokemonDBData);
 
     const pokeApiData = JSON.parse(fs.readFileSync(`./docs/pokeAPI/pokemon_${index}.json`, console.log));
-    let {id, name, stats, types, weight, abilities, base_experience, height} = pokeApiData;
+    const {id, name, stats, types, weight, abilities, base_experience, height} = pokeApiData;
 
     // pokedex entry
-    const pokedexEntry = $('h2').filter((_i,e) => $(e).text() == 'Pokédex entries').next().find('table.vitals-table tbody tr:last-child td').text();
+    const pokedexEntry = $('h2').filter((_i, e) => $(e).text() == 'Pokédex entries').next().find('table.vitals-table tbody tr:last-child td').text();
 
     // localization
-    let localization = [];
-    const nameTable = $('h2').filter((_i,e) => $(e).text() == 'Other languages').parent().find('table.vitals-table tbody tr');
+    const localization = [];
+    const nameTable = $('h2').filter((_i, e) => $(e).text() == 'Other languages').parent().find('table.vitals-table tbody tr');
     nameTable.each((_index, row) => {
       const languages = $(row).find('th').text().toLowerCase().split(', ');
       const name = $(row).find('td').text().toLowerCase();
 
-      languages.forEach(language => localization.push({'language': language, 'name': name}));
+      languages.forEach((language) => localization.push({'language': language, 'name': name}));
     });
 
     // formatting types
-    const formattedAbilities = abilities.map(abilityObject => {
-      let newObj = {};
+    const formattedAbilities = abilities.map((abilityObject) => {
+      const newObj = {};
 
       newObj['slot'] = abilityObject.slot;
       newObj['is_hidden'] = abilityObject.is_hidden;
@@ -80,8 +80,8 @@ function combineData() {
     });
 
     // formatting types
-    const formattedTypes = types.map(typeObject => {
-      let newObj = {};
+    const formattedTypes = types.map((typeObject) => {
+      const newObj = {};
 
       newObj['slot'] = typeObject.slot;
       newObj['name'] = typeObject.type.name;
@@ -89,24 +89,24 @@ function combineData() {
       return newObj;
     });
 
-    //type defences
+    // type defences
     const typeDefenses = [];
-    const defensesTable = $('h2').filter((_i,e) => $(e).text() == 'Type defenses').parent().find('table.type-table tbody tr:nth-child(2) td');
+    const defensesTable = $('h2').filter((_i, e) => $(e).text() == 'Type defenses').parent().find('table.type-table tbody tr:nth-child(2) td');
     defensesTable.each((_index, element) => {
       const td = $(element);
-      
-      const [attacker, defender, effectivness] = td.attr('title').split(/[→=]/).map(str => str.trim().toLowerCase());
-  
+
+      const [attacker, defender, effectivness] = td.attr('title').split(/[→=]/).map((str) => str.trim().toLowerCase());
+
       typeDefenses.push({
         'attacker': attacker,
-        'effectivness': parseEffectiveness(effectivness)
+        'effectivness': parseEffectiveness(effectivness),
       });
-    })
+    });
 
     // formatting stats
-    const baseStatTable = $('h2').filter((_i,e) => $(e).text() == 'Base stats').parent().find('table.vitals-table tbody');
-    const formattedStats = stats.map(statObject => {
-      let newObj = {};
+    const baseStatTable = $('h2').filter((_i, e) => $(e).text() == 'Base stats').parent().find('table.vitals-table tbody');
+    const formattedStats = stats.map((statObject) => {
+      const newObj = {};
 
       newObj['base_stat'] = statObject.base_stat;
       newObj['effort'] = statObject.effort;
@@ -116,14 +116,14 @@ function combineData() {
 
       if (statObject.stat.name == 'special-attack') {
         const parts = statObject.stat.name.split('-');
-        let prefix = capitalize(parts[0]).substring(0,2);
-        let postfix = capitalize(parts[1]).replace('tac', '');
+        const prefix = capitalize(parts[0]).substring(0, 2);
+        const postfix = capitalize(parts[1]).replace('tac', '');
 
         formattedName = `${prefix}. ${postfix}`;
       } else if (statObject.stat.name == 'special-defense') {
         const parts = statObject.stat.name.split('-');
-        let prefix = capitalize(parts[0]).substring(0,2);
-        let postfix = capitalize(parts[1]).substring(0,3);
+        const prefix = capitalize(parts[0]).substring(0, 2);
+        const postfix = capitalize(parts[1]).substring(0, 3);
 
         formattedName = `${prefix}. ${postfix}`;
       } else if (statObject.stat.name == 'hp') {
@@ -132,7 +132,7 @@ function combineData() {
         formattedName = capitalize(statObject.stat.name);
       }
 
-      const statInfo = baseStatTable.find('th').filter((_i,e) => $(e).text() == formattedName).parent();
+      const statInfo = baseStatTable.find('th').filter((_i, e) => $(e).text() == formattedName).parent();
       const statMax = statInfo.find('td:nth-child(5)');
       const statMin = statInfo.find('td:nth-child(4)');
 
@@ -141,12 +141,12 @@ function combineData() {
 
       return newObj;
     });
-    
+
     const data = {
       'id': id,
       'name': {
         'name': name,
-        'other_languages': localization
+        'other_languages': localization,
       },
       'pokedex_entry': pokedexEntry,
       'base_experience': base_experience,
@@ -155,7 +155,7 @@ function combineData() {
       'stats': formattedStats,
       'types': formattedTypes,
       'type_defenses': typeDefenses,
-      'abilities': formattedAbilities
+      'abilities': formattedAbilities,
     };
 
     fs.writeFileSync(`./docs/personal/pokemon_${index}.json`, JSON.stringify(data), console.log);
@@ -177,7 +177,7 @@ function getPokemonData() {
     pokemon[dexNumber] = {
       'name': $('h1').text().toLowerCase(),
       'picture': $('a[rel=lightbox]').attr('href'),
-      'types': infoTable.find('tr:nth-child(2) td a').toArray().map((e) => $(e).text().toLowerCase())
+      'types': infoTable.find('tr:nth-child(2) td a').toArray().map((e) => $(e).text().toLowerCase()),
     };
   }
 
@@ -194,7 +194,7 @@ async function exportNames() {
     const html = fs.readFileSync(`./docs/pages/${file}`, console.log);
     const $ = load(html);
 
-    const nameTable = $('h2').filter((_i,e) => $(e).text() == 'Other languages').parent().find('table.vitals-table')
+    const nameTable = $('h2').filter((_i, e) => $(e).text() == 'Other languages').parent().find('table.vitals-table');
 
     const nameEN = nameTable.find('tr:nth-child(1) td').text().toLowerCase();
     const nameDE = nameTable.find('tr:nth-child(3) td').text().toLowerCase();
@@ -215,19 +215,19 @@ async function exportTypematchups() {
   const $ = load(html);
   const typetable = $('table.type-table tbody td');
 
-  let typeMap = {};
+  const typeMap = {};
 
   typetable.each((index, element) => {
     const td = $(element);
-    
-    const [attacker, defender, effectivness] = td.attr('title').split(/[→=]/).map(str => str.trim().toLowerCase());
+
+    const [attacker, defender, effectivness] = td.attr('title').split(/[→=]/).map((str) => str.trim().toLowerCase());
 
     if (typeMap[attacker] == undefined) {
-      typeMap[attacker] = {}
+      typeMap[attacker] = {};
     }
 
     typeMap[attacker][defender] = parseEffectiveness(effectivness);
-  })
+  });
 
   fs.writeFile('./docs/type-matchups.json', JSON.stringify(typeMap), console.log);
 };

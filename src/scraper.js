@@ -4,34 +4,38 @@ import fs from 'fs';
 
 const POKEMON_COUNT = 898;
 
-// Get all pokemon documents from pokemondb
-async function downloadPokemondocuments() {
+/**
+ * Downloads pokemon pages from pokemondb.net
+ */
+async function downloadFromPokemonDB() {
   const base = 'https://pokemondb.net';
 
   const response = await fetch(`${base}/pokedex/national`);
   const html = await response.text();
 
   const $ = load(html);
-  const infocards = $('div.infocard-list div.infocard');
+  const infocards = $('div.infocard-list div.infocard').toArray();
 
   const pokemonPages = [];
 
-  for (const [index, infocard] of infocards.toArray().entries()) {
+  for (const infocard of infocards.values()) {
     const el = $(infocard);
-    const pokemonURI = el.find('div.infocard span.infocard-lg-img a').attr('href');
-    const pokemonPage = await fetch(`${base}${pokemonURI}`);
+    const uri = el.find('div.infocard span.infocard-lg-img a').attr('href');
+    const pokemonPage = await fetch(`${base}${uri}`);
 
     pokemonPages.push(pokemonPage);
   }
 
   for (const [index, page] of pokemonPages.entries()) {
-    const test = await page.text();
-    fs.writeFile(`./docs/pokemondb/pokemon_${index + 1}.html`, test, console.log);
+    const content = await page.text();
+    fs.writeFile(`./docs/pokemondb/pokemon_${index+1}.html`, content, console.log);
   }
 };
 
-// Get all pokemon documents from pokeapi
-async function downloadPokemonJSON() {
+/**
+ * Downloads pokemon data from pokeapi.co
+ */
+async function downloadFromPokemonAPI() {
   const base = 'https://pokeapi.co/api/v2/pokemon';
 
   for (let index = 1; index <= POKEMON_COUNT; index++) {
@@ -46,21 +50,27 @@ async function downloadPokemonJSON() {
   }
 };
 
-// Combine pokemondb data with pokeAPI data
+/**
+ * Combines data from pokemondb and pokeapi into custom format.
+ */
 function combineData() {
   for (let index = 1; index <= POKEMON_COUNT; index++) {
     const pokemonDBData = fs.readFileSync(`./docs/pokemondb/pokemon_${index}.html`, console.log);
     const $ = load(pokemonDBData);
 
-    const pokeApiData = JSON.parse(fs.readFileSync(`./docs/pokeAPI/pokemon_${index}.json`, console.log));
+    let pokeApiData = fs.readFileSync(`./docs/pokeAPI/pokemon_${index}.json`, console.log);
+    pokeApiData = JSON.parse(pokeApiData);
+
     const {id, name, stats, types, weight, abilities, base_experience, height} = pokeApiData;
 
     // pokedex entry
-    const pokedexEntry = $('h2').filter((_i, e) => $(e).text() == 'Pokédex entries').next().find('table.vitals-table tbody tr:last-child td').text();
+    const pokedexEntries = $('h2').filter((_i, e) => $(e).text() == 'Pokédex entries').next();
+    const latestEntry = pokedexEntries.find('table.vitals-table tbody tr:last-child td').text();
 
     // localization
     const localization = [];
-    const nameTable = $('h2').filter((_i, e) => $(e).text() == 'Other languages').parent().find('table.vitals-table tbody tr');
+    const localizationSection = $('h2').filter((_i, e) => $(e).text() == 'Other languages').parent();
+    const nameTable = localizationSection.find('table.vitals-table tbody tr');
     nameTable.each((_index, row) => {
       const languages = $(row).find('th').text().toLowerCase().split(', ');
       const name = $(row).find('td').text().toLowerCase();
@@ -91,7 +101,8 @@ function combineData() {
 
     // type defences
     const typeDefenses = [];
-    const defensesTable = $('h2').filter((_i, e) => $(e).text() == 'Type defenses').parent().find('table.type-table tbody tr:nth-child(2) td');
+    const defensesSection = $('h2').filter((_i, e) => $(e).text() == 'Type defenses').parent();
+    const defensesTable = defensesSection.find('table.type-table tbody tr:nth-child(2) td');
     defensesTable.each((_index, element) => {
       const td = $(element);
 
@@ -148,7 +159,7 @@ function combineData() {
         'name': name,
         'other_languages': localization,
       },
-      'pokedex_entry': pokedexEntry,
+      'pokedex_entry': latestEntry,
       'base_experience': base_experience,
       'height': height,
       'weight': weight,
@@ -162,62 +173,19 @@ function combineData() {
   }
 };
 
-// Pokedex
-function getPokemonData() {
-  const pokemonFiles = fs.readdirSync('./docs/pages');
-  const pokemon = {};
-
-  for (const [index, file] of pokemonFiles.entries()) {
-    const html = fs.readFileSync(`./docs/pages/${file}`, console.log);
-    const $ = load(html);
-
-    const infoTable = $('div.sv-tabs-panel.active div.grid-col.span-md-6.span-lg-4 table.vitals-table tbody');
-    const dexNumber = parseInt(infoTable.find('tr:nth-child(1) td strong').text());
-
-    pokemon[dexNumber] = {
-      'name': $('h1').text().toLowerCase(),
-      'picture': $('a[rel=lightbox]').attr('href'),
-      'types': infoTable.find('tr:nth-child(2) td a').toArray().map((e) => $(e).text().toLowerCase()),
-    };
-  }
-
-  fs.writeFile('./docs/pokemon.json', JSON.stringify(pokemon), console.log);
-};
-
-// Names
-async function exportNames() {
-  const pokemonFiles = fs.readdirSync('./docs/pages');
-  const de = { };
-  const en = { };
-
-  for (const [index, file] of pokemonFiles.entries()) {
-    const html = fs.readFileSync(`./docs/pages/${file}`, console.log);
-    const $ = load(html);
-
-    const nameTable = $('h2').filter((_i, e) => $(e).text() == 'Other languages').parent().find('table.vitals-table');
-
-    const nameEN = nameTable.find('tr:nth-child(1) td').text().toLowerCase();
-    const nameDE = nameTable.find('tr:nth-child(3) td').text().toLowerCase();
-
-    de[nameDE] = nameDE;
-    en[nameEN] = nameEN;
-  }
-
-  fs.writeFile('./docs/languages/de.json', JSON.stringify(de), console.log);
-  fs.writeFile('./docs/languages/en.json', JSON.stringify(en), console.log);
-};
-
-// Type matchups
+/**
+ * Scrapes pokemon type matchups from pokemondb.net
+ */
 async function exportTypematchups() {
   const response = await fetch('https://pokemondb.net/type');
   const html = await response.text();
 
   const $ = load(html);
-  const typetable = $('table.type-table tbody td');
+  const typeTable = $('table.type-table tbody td');
 
   const typeMap = {};
 
-  typetable.each((index, element) => {
+  typeTable.each((_index, element) => {
     const td = $(element);
 
     const [attacker, defender, effectivness] = td.attr('title').split(/[→=]/).map((str) => str.trim().toLowerCase());
@@ -232,8 +200,14 @@ async function exportTypematchups() {
   fs.writeFile('./docs/type-matchups.json', JSON.stringify(typeMap), console.log);
 };
 
-function parseEffectiveness(effectivness) {
-  switch (effectivness) {
+/**
+ * Parses effectiveness description into a number.
+ *
+ * @param {string} _effectiveness
+ * @return {number} effectiveness
+ */
+function parseEffectiveness(effectiveness) {
+  switch (effectiveness) {
     case 'super-effective':
       return 2;
     case 'normal effectiveness':
@@ -243,10 +217,16 @@ function parseEffectiveness(effectivness) {
     case 'no effect':
       return 0;
     default:
-      throw new Error();
+      throw new Error('unknown effectivness');
   }
 };
 
+/**
+ * Capitalizeses the given string.
+ *
+ * @param {string} string
+ * @return {string} capitalized string
+ */
 function capitalize(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }

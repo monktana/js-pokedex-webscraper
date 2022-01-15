@@ -57,29 +57,21 @@ function combineData() {
   for (let index = 1; index <= POKEMON_COUNT; index++) {
     const pokemonDBData = fs.readFileSync(`./docs/pokemondb/pokemon_${index}.html`, console.log);
     const $ = load(pokemonDBData);
+    const main = $('#main');
 
     let pokeApiData = fs.readFileSync(`./docs/pokeAPI/pokemon_${index}.json`, console.log);
     pokeApiData = JSON.parse(pokeApiData);
 
-    const {id, name, stats, types, weight, abilities, base_experience, height} = pokeApiData;
-
     // pokedex entry
-    const pokedexEntries = $('h2').filter((_i, e) => $(e).text() == 'Pokédex entries').next();
-    const latestEntry = pokedexEntries.find('table.vitals-table tbody tr:last-child td').text();
+    const entriesHeader = main.find('h2').filter((_i, e) => $(e).text() == 'Pokédex entries');
+    const pokedexEntry = extracPokedexEntry(entriesHeader);
 
     // localization
-    const localization = [];
-    const localizationSection = $('h2').filter((_i, e) => $(e).text() == 'Other languages').parent();
-    const nameTable = localizationSection.find('table.vitals-table tbody tr');
-    nameTable.each((_index, row) => {
-      const languages = $(row).find('th').text().toLowerCase().split(', ');
-      const name = $(row).find('td').text().toLowerCase();
+    const localizationHeader = main.find('h2').filter((_i, e) => $(e).text() == 'Other languages');
+    const localization = extractLocalization($, localizationHeader);
 
-      languages.forEach((language) => localization.push({'language': language, 'name': name}));
-    });
-
-    // formatting types
-    const formattedAbilities = abilities.map((abilityObject) => {
+    // formatting abilities
+    const abilities = pokeApiData.abilities.map((abilityObject) => {
       const newObj = {};
 
       newObj['slot'] = abilityObject.slot;
@@ -90,7 +82,7 @@ function combineData() {
     });
 
     // formatting types
-    const formattedTypes = types.map((typeObject) => {
+    const types = pokeApiData.types.map((typeObject) => {
       const newObj = {};
 
       newObj['slot'] = typeObject.slot;
@@ -99,74 +91,28 @@ function combineData() {
       return newObj;
     });
 
+    const baseInformation = main.find('div.tabset-basics.sv-tabs-wrapper > div.sv-tabs-panel-list > div:first-child');
+
     // type defences
-    const typeDefenses = [];
-    const defensesSection = $('h2').filter((_i, e) => $(e).text() == 'Type defenses').parent();
-    const defensesTable = defensesSection.find('table.type-table tbody tr:nth-child(2) td');
-    defensesTable.each((_index, element) => {
-      const td = $(element);
-
-      const [attacker, defender, effectivness] = td.attr('title').split(/[→=]/).map((str) => str.trim().toLowerCase());
-
-      typeDefenses.push({
-        'attacker': attacker,
-        'effectivness': parseEffectiveness(effectivness),
-      });
-    });
+    const defensesSection = baseInformation.find('h2').filter((_i, e) => $(e).text() == 'Type defenses').parent();
+    const typeDefenses = extractTypeDefenses($, defensesSection);
 
     // formatting stats
-    const baseStatTable = $('h2').filter((_i, e) => $(e).text() == 'Base stats').parent().find('table.vitals-table tbody');
-    const formattedStats = stats.map((statObject) => {
-      const newObj = {};
-
-      newObj['base_stat'] = statObject.base_stat;
-      newObj['effort'] = statObject.effort;
-      newObj['name'] = statObject.stat.name;
-
-      let formattedName = '';
-
-      if (statObject.stat.name == 'special-attack') {
-        const parts = statObject.stat.name.split('-');
-        const prefix = capitalize(parts[0]).substring(0, 2);
-        const postfix = capitalize(parts[1]).replace('tac', '');
-
-        formattedName = `${prefix}. ${postfix}`;
-      } else if (statObject.stat.name == 'special-defense') {
-        const parts = statObject.stat.name.split('-');
-        const prefix = capitalize(parts[0]).substring(0, 2);
-        const postfix = capitalize(parts[1]).substring(0, 3);
-
-        formattedName = `${prefix}. ${postfix}`;
-      } else if (statObject.stat.name == 'hp') {
-        formattedName = statObject.stat.name.toUpperCase();
-      } else {
-        formattedName = capitalize(statObject.stat.name);
-      }
-
-      const statInfo = baseStatTable.find('th').filter((_i, e) => $(e).text() == formattedName).parent();
-      const statMax = statInfo.find('td:nth-child(5)');
-      const statMin = statInfo.find('td:nth-child(4)');
-
-      newObj['min'] = parseInt(statMin.text());
-      newObj['max'] = parseInt(statMax.text());
-
-      return newObj;
-    });
+    const baseStatTable = baseInformation.find('h2').filter((_i, e) => $(e).text() == 'Base stats').parent();
+    const stats = extractStats($, baseStatTable, pokeApiData.stats);
 
     const data = {
-      'id': id,
-      'name': {
-        'name': name,
-        'other_languages': localization,
-      },
-      'pokedex_entry': latestEntry,
-      'base_experience': base_experience,
-      'height': height,
-      'weight': weight,
-      'stats': formattedStats,
-      'types': formattedTypes,
+      'id': pokeApiData.id,
+      'name': pokeApiData.name,
+      'localization': localization,
+      'pokedex_entry': pokedexEntry,
+      'base_experience': pokeApiData.base_experience,
+      'height': pokeApiData.height,
+      'weight': pokeApiData.weight,
+      'stats': stats,
+      'types': types,
       'type_defenses': typeDefenses,
-      'abilities': formattedAbilities,
+      'abilities': abilities,
     };
 
     fs.writeFileSync(`./docs/personal/pokemon_${index}.json`, JSON.stringify(data), console.log);
@@ -174,36 +120,112 @@ function combineData() {
 };
 
 /**
- * Scrapes pokemon type matchups from pokemondb.net
+ * Extracts the (latest) pokedex entry from the pokemondb data.
+ * @param {Element} cheerioElement
+ * @return {string} the pokedex entry
  */
-async function exportTypematchups() {
-  const response = await fetch('https://pokemondb.net/type');
-  const html = await response.text();
+function extracPokedexEntry(cheerioElement) {
+  let neighbour = cheerioElement.next();
+  if (neighbour[0].name == 'h3') {
+    neighbour = neighbour.next();
+  }
+  return neighbour.find('table.vitals-table tbody tr:last-child td').text();
+}
 
-  const $ = load(html);
-  const typeTable = $('table.type-table tbody td');
+/**
+ * Extracts the name localization from the pokemondb data.
+ * @param {function} cheerio
+ * @param {Element} cheerioElement
+ * @return {array} localization information
+ */
+function extractLocalization(cheerio, cheerioElement) {
+  const localization = [];
+  const localizationRows = cheerioElement.next().find('table:first-child tbody tr');
+  localizationRows.each((_index, row) => {
+    const languages = cheerio(row).find('th').text().toLowerCase().split(', ');
+    const name = cheerio(row).find('td').text().toLowerCase();
 
-  const typeMap = {};
-
-  typeTable.each((_index, element) => {
-    const td = $(element);
-
-    const [attacker, defender, effectivness] = td.attr('title').split(/[→=]/).map((str) => str.trim().toLowerCase());
-
-    if (typeMap[attacker] == undefined) {
-      typeMap[attacker] = {};
-    }
-
-    typeMap[attacker][defender] = parseEffectiveness(effectivness);
+    languages.forEach((language) => localization.push({'language': language, 'name': name}));
   });
 
-  fs.writeFile('./docs/type-matchups.json', JSON.stringify(typeMap), console.log);
-};
+  return localization;
+}
+
+/**
+ * Extracts the type defenses from the pokemondb data.
+ * @param {function} cheerio
+ * @param {Element} cheerioElement
+ * @return {array} type defenses
+ */
+function extractTypeDefenses(cheerio, cheerioElement) {
+  const typeDefenses = [];
+  const defenses = cheerioElement.find('table.type-table tbody tr:nth-child(2) td');
+  defenses.each((_index, defense) => {
+    const defenseInfo = cheerio(defense);
+
+    const [attacker, _defender, effectivness] = defenseInfo.attr('title').split(/[→=]/).map((str) => str.trim().toLowerCase());
+
+    typeDefenses.push({
+      'attacker': attacker,
+      'effectivness': parseEffectiveness(effectivness),
+    });
+  });
+
+  return typeDefenses;
+}
+
+/**
+ * Extracts the stats from the pokemondb data and combines them with the stats from pokeAPI.
+ * @param {function} cheerio
+ * @param {Element} cheerioElement
+ * @param {Object} pokeApiStats
+ * @return {array} stat information
+ */
+function extractStats(cheerio, cheerioElement, pokeApiStats) {
+  const baseStatTable = cheerioElement.find('table.vitals-table tbody');
+  const stats = pokeApiStats.map((statObject) => {
+    const newObj = {};
+
+    newObj['base_stat'] = statObject.base_stat;
+    newObj['effort'] = statObject.effort;
+    newObj['name'] = statObject.stat.name;
+
+    let formattedName = '';
+
+    if (statObject.stat.name == 'special-attack') {
+      const parts = statObject.stat.name.split('-');
+      const prefix = capitalize(parts[0]).substring(0, 2);
+      const postfix = capitalize(parts[1]).replace('tac', '');
+
+      formattedName = `${prefix}. ${postfix}`;
+    } else if (statObject.stat.name == 'special-defense') {
+      const parts = statObject.stat.name.split('-');
+      const prefix = capitalize(parts[0]).substring(0, 2);
+      const postfix = capitalize(parts[1]).substring(0, 3);
+
+      formattedName = `${prefix}. ${postfix}`;
+    } else if (statObject.stat.name == 'hp') {
+      formattedName = statObject.stat.name.toUpperCase();
+    } else {
+      formattedName = capitalize(statObject.stat.name);
+    }
+
+    const statInfo = baseStatTable.find('th').filter((_i, e) => cheerio(e).text() == formattedName).parent();
+    const statMax = statInfo.find('td:nth-child(5)');
+    const statMin = statInfo.find('td:nth-child(4)');
+
+    newObj['min'] = parseInt(statMin.text());
+    newObj['max'] = parseInt(statMax.text());
+
+    return newObj;
+  });
+
+  return stats;
+}
 
 /**
  * Parses effectiveness description into a number.
- *
- * @param {string} _effectiveness
+ * @param {string} effectiveness
  * @return {number} effectiveness
  */
 function parseEffectiveness(effectiveness) {
@@ -230,3 +252,5 @@ function parseEffectiveness(effectiveness) {
 function capitalize(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
+
+combineData();

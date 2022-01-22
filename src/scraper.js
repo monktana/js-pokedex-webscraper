@@ -3,6 +3,7 @@ import {load} from 'cheerio';
 import fs from 'fs';
 
 const POKEMON_COUNT = 898;
+const TYPE_COUNT = 18;
 
 /**
  * Downloads pokemon pages from pokemondb.net
@@ -26,9 +27,46 @@ async function downloadFromPokemonDB() {
     pokemonPages.push(pokemonPage);
   }
 
+  if (!fs.existsSync('./docs/pokemondb/pokemon')) {
+    fs.mkdirSync('./docs/pokemondb/pokemon');
+  }
+
   for (const [index, page] of pokemonPages.entries()) {
     const content = await page.text();
     fs.writeFile(`./docs/pokemondb/pokemon_${index+1}.html`, content, console.log);
+  }
+};
+
+/**
+ * Downloads type pages from pokemondb.net
+ */
+async function downloadTypesFromPokemonDB() {
+  const base = 'https://pokemondb.net';
+
+  const response = await fetch(`${base}/type`);
+  const html = await response.text();
+
+  const $ = load(html);
+  const main = $('#main');
+  const typeQuickList = main.find('p > a.type-icon');
+
+  const typePages = [];
+
+  for (const typeLink of typeQuickList) {
+    const el = $(typeLink);
+    const uri = el.attr('href');
+    const typePage = await fetch(`${base}${uri}`);
+
+    typePages.push(typePage);
+  }
+
+  if (!fs.existsSync('./docs/pokemondb/types')) {
+    fs.mkdirSync('./docs/pokemondb/types');
+  }
+
+  for (const [index, page] of typePages.entries()) {
+    const content = await page.text();
+    fs.writeFile(`./docs/pokemondb/types/type_${index+1}.html`, content, console.log);
   }
 };
 
@@ -42,11 +80,29 @@ async function downloadFromPokemonAPI() {
     const response = await fetch(`${base}/${index}`);
     const json = await response.json();
 
-    if (!fs.existsSync('./docs/pokeAPI')) {
-      fs.mkdirSync('./docs/pokeAPI');
+    if (!fs.existsSync('./docs/pokeAPI/pokemon')) {
+      fs.mkdirSync('./docs/pokeAPI/pokemon');
     }
 
-    fs.writeFile(`./docs/pokeAPI/pokemon_${index}.json`, JSON.stringify(json), console.log);
+    fs.writeFile(`./docs/pokeAPI/pokemon/pokemon_${index}.json`, JSON.stringify(json), console.log);
+  }
+};
+
+/**
+ * Downloads type data from pokeapi.co
+ */
+async function downloadTypesFromPokemonAPI() {
+  const base = 'https://pokeapi.co/api/v2/type';
+
+  for (let index = 1; index <= TYPE_COUNT; index++) {
+    const response = await fetch(`${base}/${index}`);
+    const json = await response.json();
+
+    if (!fs.existsSync('./docs/pokeAPI/types')) {
+      fs.mkdirSync('./docs/pokeAPI/types');
+    }
+
+    fs.writeFile(`./docs/pokeAPI/types/type_${index}.json`, JSON.stringify(json), console.log);
   }
 };
 
@@ -252,5 +308,3 @@ function parseEffectiveness(effectiveness) {
 function capitalize(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
-
-combineData();

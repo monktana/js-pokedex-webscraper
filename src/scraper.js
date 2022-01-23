@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import {load} from 'cheerio';
 import fs from 'fs';
+import path from 'path';
 
 const POKEMON_COUNT = 898;
 const TYPE_COUNT = 18;
@@ -66,7 +67,11 @@ async function downloadTypesFromPokemonDB() {
 
   for (const [index, page] of typePages.entries()) {
     const content = await page.text();
-    fs.writeFile(`./docs/pokemondb/types/type_${index+1}.html`, content, console.log);
+    const $ = load(content);
+
+    const typeName = $('h1').text().split(" ")[0].toLowerCase();
+    
+    fs.writeFile(`./docs/pokemondb/types/${typeName}.html`, content, console.log);
   }
 };
 
@@ -78,13 +83,13 @@ async function downloadFromPokemonAPI() {
 
   for (let index = 1; index <= POKEMON_COUNT; index++) {
     const response = await fetch(`${base}/${index}`);
-    const json = await response.json();
+    const typeData = await response.json();
 
     if (!fs.existsSync('./docs/pokeAPI/pokemon')) {
       fs.mkdirSync('./docs/pokeAPI/pokemon');
     }
 
-    fs.writeFile(`./docs/pokeAPI/pokemon/pokemon_${index}.json`, JSON.stringify(json), console.log);
+    fs.writeFile(`./docs/pokeAPI/pokemon/pokemon_${index}.json`, JSON.stringify(typeData), console.log);
   }
 };
 
@@ -96,13 +101,13 @@ async function downloadTypesFromPokemonAPI() {
 
   for (let index = 1; index <= TYPE_COUNT; index++) {
     const response = await fetch(`${base}/${index}`);
-    const json = await response.json();
+    const typeData = await response.json();
 
     if (!fs.existsSync('./docs/pokeAPI/types')) {
       fs.mkdirSync('./docs/pokeAPI/types');
     }
 
-    fs.writeFile(`./docs/pokeAPI/types/type_${index}.json`, JSON.stringify(json), console.log);
+    fs.writeFile(`./docs/pokeAPI/types/${typeData.name}.json`, JSON.stringify(typeData), console.log);
   }
 };
 
@@ -111,12 +116,11 @@ async function downloadTypesFromPokemonAPI() {
  */
 function combineData() {
   for (let index = 1; index <= POKEMON_COUNT; index++) {
-    const pokemonDBData = fs.readFileSync(`./docs/pokemondb/pokemon_${index}.html`, console.log);
+    const pokemonDBData = fs.readFileSync(`./docs/pokemondb/pokemon/pokemon_${index}.html`, console.log);
     const $ = load(pokemonDBData);
     const main = $('#main');
 
-    let pokeApiData = fs.readFileSync(`./docs/pokeAPI/pokemon_${index}.json`, console.log);
-    pokeApiData = JSON.parse(pokeApiData);
+    const pokeApiData = JSON.parse(fs.readFileSync(`./docs/pokeAPI/pokemon/pokemon_${index}.json`));
 
     // pokedex entry
     const entriesHeader = main.find('h2').filter((_i, e) => $(e).text() == 'Pokédex entries');
@@ -174,6 +178,52 @@ function combineData() {
     fs.writeFileSync(`./docs/personal/pokemon_${index}.json`, JSON.stringify(data), console.log);
   }
 };
+
+/**
+ * Combines type data from pokemondb and pokeapi into custom format.
+ */
+function combineTypeData() {
+  const pokemonDBFiles = fs.readdirSync(`./docs/pokemondb/types`, console.log);
+  for (let index = 0; index < pokemonDBFiles.length; index++) {
+    const fileName = path.parse(pokemonDBFiles[index]);
+
+    const pokemonDBFile = fs.readFileSync(`./docs/pokemondb/types/${fileName.base}`);
+    const pokeAPIFile = JSON.parse(fs.readFileSync(`./docs/pokeAPI/types/${fileName.name}.json`));
+    
+    const $ = load(pokemonDBFile);
+    const main = $('#main');
+    const typePokemon = main.find('div.infocard-list.infocard-list-pkmn-md > div.infocard');
+
+    const pokemon = [];
+    let lastID = 0;
+    typePokemon.each((_index, pkmn) => {
+      const name = $(pkmn).find('span.infocard-md-data > a:first-child').text().toLowerCase();
+      const data = $(pkmn).find('span.infocard-md-data > small.text-muted:last-child').text().split(/[\W]+/);
+      data.shift();
+
+      const id = Number(data[0]);
+      if (id !== lastID) {
+        pokemon.push({
+          'name': name,
+          'url': `/${id}`
+        });
+
+        lastID = id;
+      }
+    });
+
+    const typeData = {
+      id: (index + 1),
+      name: pokeAPIFile.name,
+      matchups: pokeAPIFile.damage_relations,
+      damage_class: pokeAPIFile.move_damage_class?.name,
+      pokemon_count: pokemon.length,
+      pokemon: pokemon,
+    }
+
+    fs.writeFileSync(`./docs/personal/types/${fileName.name}.json`, JSON.stringify(typeData), console.log);
+  }
+}
 
 /**
  * Extracts the (latest) pokedex entry from the pokemondb data.
@@ -308,3 +358,5 @@ function parseEffectiveness(effectiveness) {
 function capitalize(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
+
+combineTypeData();

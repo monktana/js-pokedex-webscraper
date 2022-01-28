@@ -5,6 +5,7 @@ import path from 'path';
 
 const POKEMON_COUNT = 898;
 const TYPE_COUNT = 18;
+const API_URL = 'http://localhost:5001/pokemon-api-d5ce5/us-central1/api';
 
 /**
  * Downloads pokemon pages from pokemondb.net
@@ -147,6 +148,7 @@ function combineData() {
 
       newObj['slot'] = typeObject.slot;
       newObj['name'] = typeObject.type.name;
+      newObj['url'] = `${API_URL}/types/${typeObject.type.name}`;
 
       return newObj;
     });
@@ -175,7 +177,7 @@ function combineData() {
       'abilities': abilities,
     };
 
-    fs.writeFileSync(`./docs/personal/pokemon_${index}.json`, JSON.stringify(data), console.log);
+    fs.writeFileSync(`./docs/personal/pokemon/${index}.json`, JSON.stringify(data), console.log);
   }
 };
 
@@ -205,17 +207,31 @@ function combineTypeData() {
       if (id !== lastID) {
         pokemon.push({
           'name': name,
-          'url': `/${id}`
+          'url': `${API_URL}/pokemon/${id}`
         });
 
         lastID = id;
       }
     });
 
+    const typeMatchups = {};
+    Object.entries(pokeAPIFile.damage_relations).forEach(([key, matchups]) => {
+      const data = matchups.map((type) => {
+        const newObj = {};
+
+        newObj['name'] = type.name;
+        newObj['url'] = `${API_URL}/types/${type.name}`;
+
+        return newObj;
+      });
+      
+      typeMatchups[key] = data;
+    });
+
     const typeData = {
       id: (index + 1),
       name: pokeAPIFile.name,
-      matchups: pokeAPIFile.damage_relations,
+      matchups: typeMatchups,
       damage_class: pokeAPIFile.move_damage_class?.name,
       pokemon_count: pokemon.length,
       pokemon: pokemon,
@@ -274,6 +290,7 @@ function extractTypeDefenses(cheerio, cheerioElement) {
     typeDefenses.push({
       'attacker': attacker,
       'effectivness': parseEffectiveness(effectivness),
+      'url': `${API_URL}/types/${attacker}`,
     });
   });
 
@@ -359,4 +376,5 @@ function capitalize(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
+combineData();
 combineTypeData();

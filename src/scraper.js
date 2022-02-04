@@ -143,19 +143,11 @@ function combineData() {
     });
 
     // formatting types
-    const types = pokeApiData.types.map((typeObject) => {
-      const newObj = {};
-
-      newObj['slot'] = typeObject.slot;
-      newObj['name'] = typeObject.type.name;
-      newObj['url'] = `${API_URL}/types/${typeObject.type.name}`;
-
-      return newObj;
-    });
-
-    const baseInformation = main.find('div.tabset-basics.sv-tabs-wrapper > div.sv-tabs-panel-list > div:first-child');
+    const types = pokeApiData.types.map(type => type.type.name);
 
     // type defences
+    const baseInformation = main.find('div.tabset-basics.sv-tabs-wrapper > div.sv-tabs-panel-list > div:first-child');
+
     const defensesSection = baseInformation.find('h2').filter((_i, e) => $(e).text() == 'Type defenses').parent();
     const typeDefenses = extractTypeDefenses($, defensesSection);
 
@@ -205,26 +197,14 @@ function combineTypeData() {
 
       const id = Number(data[0]);
       if (id !== lastID) {
-        pokemon.push({
-          'name': name,
-          'url': `${API_URL}/pokemon/${id}`
-        });
-
+        pokemon.push(name);
         lastID = id;
       }
     });
 
     const typeMatchups = {};
     Object.entries(pokeAPIFile.damage_relations).forEach(([key, matchups]) => {
-      const data = matchups.map((type) => {
-        const newObj = {};
-
-        newObj['name'] = type.name;
-        newObj['url'] = `${API_URL}/types/${type.name}`;
-
-        return newObj;
-      });
-      
+      const data = matchups.map(type => type.name);
       typeMatchups[key] = data;
     });
 
@@ -280,18 +260,24 @@ function extractLocalization(cheerio, cheerioElement) {
  * @return {array} type defenses
  */
 function extractTypeDefenses(cheerio, cheerioElement) {
-  const typeDefenses = [];
+  const typeDefenses = {"double_damage_from": [], "half_damage_from": [], "no_damage_from": []};
+
   const defenses = cheerioElement.find('table.type-table tbody tr:nth-child(2) td');
   defenses.each((_index, defense) => {
     const defenseInfo = cheerio(defense);
 
-    const [attacker, _defender, effectivness] = defenseInfo.attr('title').split(/[→=]/).map((str) => str.trim().toLowerCase());
-
-    typeDefenses.push({
-      'attacker': attacker,
-      'effectivness': parseEffectiveness(effectivness),
-      'url': `${API_URL}/types/${attacker}`,
-    });
+    let [attacker, _defender, effectiveness] = defenseInfo.attr('title').split(/[→=]/).map((str) => str.trim().toLowerCase());
+    switch (effectiveness) {
+      case 'super-effective':
+        typeDefenses.double_damage_from.push(attacker)
+        break;
+      case 'not very effective':
+        typeDefenses.half_damage_from.push(attacker)
+        break;
+      case 'no effect':
+        typeDefenses.no_damage_from.push(attacker)
+        break;
+    }
   });
 
   return typeDefenses;

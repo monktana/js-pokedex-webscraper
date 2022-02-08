@@ -133,17 +133,15 @@ function combineData() {
 
     // formatting abilities
     const abilities = pokeApiData.abilities.map((abilityObject) => {
-      const newObj = {};
-
-      newObj['slot'] = abilityObject.slot;
-      newObj['is_hidden'] = abilityObject.is_hidden;
-      newObj['name'] = abilityObject.ability.name;
-
-      return newObj;
+      return {
+        slot: abilityObject.slot,
+        is_hidden: abilityObject.is_hidden,
+        name: abilityObject.ability.name
+      };
     });
 
     // formatting types
-    const types = pokeApiData.types.map(type => type.type.name);
+    const types = pokeApiData.types.reduce((accumulator, type) => ({ ...accumulator, [type.type.name]: true}), {});
 
     // type defences
     const baseInformation = main.find('div.tabset-basics.sv-tabs-wrapper > div.sv-tabs-panel-list > div:first-child');
@@ -331,26 +329,6 @@ function extractStats(cheerio, cheerioElement, pokeApiStats) {
 
   return stats;
 }
-
-/**
- * Parses effectiveness description into a number.
- * @param {string} effectiveness
- * @return {number} effectiveness
- */
-function parseEffectiveness(effectiveness) {
-  switch (effectiveness) {
-    case 'super-effective':
-      return 2;
-    case 'normal effectiveness':
-      return 1;
-    case 'not very effective':
-      return 0.5;
-    case 'no effect':
-      return 0;
-    default:
-      throw new Error('unknown effectivness');
-  }
-};
 
 /**
  * Capitalizeses the given string.

@@ -1,9 +1,11 @@
-import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import {load} from 'cheerio';
 
 const POKEMON_COUNT = 898;
+const POKEMONDB_DIR = './docs/pokemondb';
+const POKEMONAPI_DIR = './docs/pokeAPI';
+const PERSONAL_DIR = './docs/personal';
 
 const TYPES = {
   bug: 1,
@@ -32,11 +34,11 @@ const TYPES = {
 function pokemonCSV() {
   const pokemonData = [];
   for (let index = 1; index <= POKEMON_COUNT; index++) {
-    const pokemonDBData = fs.readFileSync(`./docs/pokemondb/pokemon/pokemon_${index}.html`, console.log);
+    const pokemonDBData = fs.readFileSync(`${POKEMONDB_DIR}/pokemon/pokemon_${index}.html`, console.log);
     const $ = load(pokemonDBData);
     const main = $('#main');
 
-    const pokeApiData = JSON.parse(fs.readFileSync(`./docs/pokeAPI/pokemon/pokemon_${index}.json`));
+    const pokeApiData = JSON.parse(fs.readFileSync(`${POKEMONAPI_DIR}/pokemon/pokemon_${index}.json`));
 
     // pokedex entry
     const entriesHeader = main.find('h2').filter((_i, e) => $(e).text() == 'Pokédex entries');
@@ -65,7 +67,7 @@ function pokemonCSV() {
   csv.unshift(fields.join(',')) // add header column
   csv = csv.join('\r\n');
 
-  fs.writeFileSync(`./docs/personal/pokemon/pokemon.csv`, csv, console.log);
+  fs.writeFileSync(`${PERSONAL_DIR}/db/pokemon.csv`, csv, console.log);
 };
 
 /**
@@ -107,7 +109,7 @@ function pokemonHasTypeCSV() {
   csv[0] = fields.join(',') // add header column
   const csvJoined = csv.join('\r\n');
 
-  fs.writeFileSync(`./docs/personal/pokemon/pokemon_has_types.csv`, csvJoined, console.log);
+  fs.writeFileSync(`${PERSONAL_DIR}/db/pokemon_has_types.csv`, csvJoined, console.log);
 };
 
 /**
@@ -141,49 +143,8 @@ function typesCSV() {
   csv.unshift(fields.join(',')) // add header column
   csv = csv.join('\r\n');
 
-  fs.writeFileSync(`./docs/personal/types/types.csv`, csv, console.log);
+  fs.writeFileSync(`${PERSONAL_DIR}/db/types.csv`, csv, console.log);
 };
-
-
-// Type Scrap
-(async () => {
-  const response = await fetch('https://pokemondb.net/type');
-  const html = await response.text();
-
-  const $ = load(html);
-  const typetable = $('table.type-table tbody td');
-
-  let typeMap = {};
-
-  typetable.each((index, element) => {
-    const td = $(element);
-    
-    const [attacker, defender, effectivness] = td.attr('title').split(/[→=]/).map(str => str.trim().toLowerCase());
-
-    if (typeMap[attacker] == undefined) {
-      typeMap[attacker] = {}
-    }
-
-    typeMap[attacker][defender] = parseEffectiveness(effectivness);
-  })
-
-  await fs.writeFile('./docs/typematchups.json', JSON.stringify(typeMap), console.log);
-})();
-
-function parseEffectiveness(effectivness) {
-  switch (effectivness) {
-    case 'super-effective':
-      return 2;
-    case 'normal effectiveness':
-      return 1;
-    case 'not very effective':
-      return 0.5;
-    case 'no effect':
-      return 0;
-    default:
-      throw new Error();
-  }
-}
 
 /**
  * Combines data from pokemondb and pokeapi into custom format.
@@ -191,21 +152,26 @@ function parseEffectiveness(effectivness) {
 function typeMatchupsCSV() {
   const typeData = [];
 
-  const typeFiles = fs.readdirSync(`./docs/pokeAPI/types`, console.log);
-  for (let index = 0; index < typeFiles.length; index++) {
-    const fileName = path.parse(typeFiles[index]);
-    const typeFile = JSON.parse(fs.readFileSync(`./docs/pokeAPI/types/${fileName.name}.json`));
+  const typeFile = JSON.parse(fs.readFileSync(`./docs/typematchups.json`));
+  Object.entries(typeFile).forEach(types => {
+    const attacking = TYPES[types[0]];
+    const matchups = types[1];
 
-    const data = {
-      id: (index + 1),
-      name: typeFile.name,
-      damage_class: typeFile.move_damage_class?.name
-    }
+    Object.entries(matchups).forEach(matchup => {
+      const defending = TYPES[matchup[0]];
+      const effectiveness = matchup[1];
 
-    typeData.push(data);
-  }
+      const data = {
+        attackingTypeID: attacking,
+        defendingTypeID: defending,
+        effectiveness: effectiveness
+      }
 
-  const fields = Object.keys(typeData[0]);
+      typeData.push(data);
+    });
+  });
+
+  const fields = ["attackingTypeID", "defendingTypeID", "effectiveness"];
   const replacer = (key, value) => value ? value : ''; //handles empty values
 
   var csv = typeData.map(function(row){
@@ -216,9 +182,10 @@ function typeMatchupsCSV() {
   csv.unshift(fields.join(',')) // add header column
   csv = csv.join('\r\n');
 
-  fs.writeFileSync(`./docs/personal/types/types.csv`, csv, console.log);
+  fs.writeFileSync(`${PERSONAL_DIR}/db/typematchups.csv`, csv, console.log);
 };
 
-// pokemonCSV();
-// pokemonHasTypeCSV();
-// typesCSV();
+pokemonCSV();
+pokemonHasTypeCSV();
+typesCSV();
+typeMatchupsCSV();

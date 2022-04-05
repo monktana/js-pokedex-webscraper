@@ -172,11 +172,10 @@ function typeMatchupsCSV() {
   });
 
   const fields = ["attackingTypeID", "defendingTypeID", "effectiveness"];
-  const replacer = (key, value) => value ? value : ''; //handles empty values
 
   var csv = typeData.map(function(row){
     return fields.map(function(fieldName){
-      return JSON.stringify(row[fieldName], replacer)
+      return JSON.stringify(row[fieldName])
     }).join(',')
   })
   csv.unshift(fields.join(',')) // add header column

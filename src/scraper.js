@@ -9,6 +9,7 @@ const TYPE_COUNT = 18;
 const POKEMONDB_DIR = './docs/pokemondb';
 const POKEMONAPI_DIR = './docs/pokeAPI';
 const PERSONAL_DIR = './docs/personal';
+const IMAGE_DIR = './images';
 
 /**
  * Downloads pokemon pages from pokemondb.net
@@ -89,7 +90,7 @@ async function downloadTypeMatchupsFromPokemonDB() {
 
   let typeMap = {};
 
-  typetable.each((index, element) => {
+  typetable.each((_index, element) => {
     const td = $(element);
     
     const [attacker, defender, effectivness] = td.attr('title').split(/[→=]/).map(str => str.trim().toLowerCase());
@@ -101,8 +102,61 @@ async function downloadTypeMatchupsFromPokemonDB() {
     typeMap[attacker][defender] = parseEffectiveness(effectivness);
   })
 
-  await fs.writeFile(`${PERSONAL_DIR}/typematchups.json`, JSON.stringify(typeMap), console.log);
+  fs.writeFile(`${PERSONAL_DIR}/typematchups.json`, JSON.stringify(typeMap), console.log);
 };
+
+async function scrapSpritesFromPokemonDB() {
+  const base = 'https://pokemondb.net';
+
+  const response = await fetch(`${base}/sprites`);
+  const html = await response.text();
+
+  const $ = load(html);
+  const infocards = $('div.infocard-list a.infocard').toArray();
+
+  for (const infocard of infocards.values()) {
+    const el = $(infocard);
+    const uri = el.attr('href');
+    const pokemonPage = await fetch(`${base}${uri}`);
+    const content = await pokemonPage.text();
+
+    const $$ = load(content);
+    const pokemonName = $$('h1').text().split(' ')[0];
+    // if (!fs.existsSync(`${IMAGE_DIR}/${pokemonName}`)) {
+    //   fs.mkdirSync(`${IMAGE_DIR}/${pokemonName}`);
+    // }
+
+    const spriteTables = $$('table.block-wide').toArray();
+
+    for (const [_index, table] of spriteTables.entries()) {
+      const el = $$(table);
+
+      const generation = el.parent().prev().text();
+      // if (!fs.existsSync(`${IMAGE_DIR}/${pokemonName}/${generation}`)) {
+      //   fs.mkdirSync(`${IMAGE_DIR}/${pokemonName}/${generation}`);
+      // }
+
+      const sprites = el.find('span.sprites-table-card a').get();
+
+      for (const [_index, sprite] of sprites.entries()) {
+        const href = $$(sprite).attr('href');
+        const image = await fetch(href);
+        const buffer = await image.arrayBuffer();
+
+        const urlParts = href.split('/');
+        const game = urlParts[4];
+        const pokemon = urlParts[urlParts.length - 1];
+        const type = urlParts[urlParts.length - 2];
+
+        if (!fs.existsSync(`${IMAGE_DIR}/${pokemonName}/${generation}/${game}/${type}`)) {
+          fs.mkdirSync(`${IMAGE_DIR}/${pokemonName}/${generation}/${game}/${type}`, {recursive: true});
+        }
+
+        fs.writeFileSync(`${IMAGE_DIR}/${pokemonName}/${generation}/${game}/${type}/${pokemon}`, Buffer.from(buffer), () => console.log(`finished downloading: ${href}`));
+      }
+    }
+  }
+}
 
 /**
  * Downloads pokemon data from pokeapi.co
@@ -372,11 +426,13 @@ function capitalize(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
-downloadFromPokemonDB();
-downloadTypesFromPokemonDB();
-downloadTypeMatchupsFromPokemonDB();
-downloadFromPokemonAPI();
-downloadTypesFromPokemonAPI();
+scrapSpritesFromPokemonDB();
 
-combineData();
-combineTypeData();
+// downloadFromPokemonDB();
+// downloadTypesFromPokemonDB();
+// downloadTypeMatchupsFromPokemonDB();
+// downloadFromPokemonAPI();
+// downloadTypesFromPokemonAPI();
+
+// combineData();
+// combineTypeData();

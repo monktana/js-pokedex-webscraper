@@ -163,17 +163,63 @@ async function scrapSpritesFromPokemonDB() {
  */
 async function downloadFromPokemonAPI() {
   const base = 'https://pokeapi.co/api/v2/pokemon';
+  const ids = [1,3,4,6,7,9,92];
 
-  for (let index = 1; index <= POKEMON_COUNT; index++) {
-    const response = await fetch(`${base}/${index}`);
-    const typeData = await response.json();
-
-    if (!fs.existsSync(`${POKEMONAPI_DIR}/pokemon`)) {
-      fs.mkdirSync(`${POKEMONAPI_DIR}/pokemon`);
-    }
-
-    fs.writeFile(`${POKEMONAPI_DIR}/pokemon/pokemon_${index}.json`, JSON.stringify(typeData), console.log);
+  if (!fs.existsSync(`${POKEMONAPI_DIR}/pokemon`)) {
+    fs.mkdirSync(`${POKEMONAPI_DIR}/pokemon`);
   }
+
+  const pokemon = await Promise.all(ids.map(async (pkmn) => {
+    const response = await fetch(`${base}/${pkmn}`);
+    const pokemondata = await response.json();
+
+    const {id, name, sprites, types} = pokemondata;
+
+    return { 
+      id, 
+      name, 
+      sprites: { 
+        back_default: sprites.back_default, 
+        back_shiny: sprites.back_shiny, 
+        front_default: sprites.front_default, 
+        front_shiny: sprites.front_shiny 
+      }, 
+      types, 
+      moves : []
+    };
+  }));
+
+  fs.writeFile(`${POKEMONAPI_DIR}/pokemon/pokemon.json`, JSON.stringify(pokemon), console.log);
+};
+
+/**
+ * Downloads pokemon data from pokeapi.co
+ */
+async function downloadMovesFromPokemonAPI() {
+  const base = 'https://pokeapi.co/api/v2/move';
+  const ids = [33,45,53,55,75];
+
+  if (!fs.existsSync(`${POKEMONAPI_DIR}/moves`)) {
+    fs.mkdirSync(`${POKEMONAPI_DIR}/moves`);
+  }
+
+  const pokemon = await Promise.all(ids.map(async (move) => {
+    const response = await fetch(`${base}/${move}`);
+    const movedata = await response.json();
+
+    const {id, name, power, names, type} = movedata;
+
+    return { 
+      id,
+      name,
+      power,
+      names, 
+      type, 
+      learned_by_pokemon : []
+    };
+  }));
+
+  fs.writeFile(`${POKEMONAPI_DIR}/moves/moves.json`, JSON.stringify(pokemon), console.log);
 };
 
 /**
@@ -426,12 +472,13 @@ function capitalize(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
-scrapSpritesFromPokemonDB();
+// scrapSpritesFromPokemonDB();
 
 // downloadFromPokemonDB();
 // downloadTypesFromPokemonDB();
 // downloadTypeMatchupsFromPokemonDB();
-// downloadFromPokemonAPI();
+downloadFromPokemonAPI();
+downloadMovesFromPokemonAPI();
 // downloadTypesFromPokemonAPI();
 
 // combineData();
